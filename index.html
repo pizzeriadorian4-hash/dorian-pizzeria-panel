@@ -139,6 +139,23 @@ td.r,th.r{text-align:right;padding-right:0}
 .ovb{display:flex;flex-direction:column;gap:12px;align-items:center;max-width:520px;width:100%}
 .ovb img{max-width:100%;max-height:75vh;border-radius:8px;background:var(--panel)}
 .ovb p{color:var(--muted);font-size:14px}
+.mhelp{font-size:13px;color:var(--muted);margin-bottom:18px;max-width:60ch}
+.eh,.er{display:grid;grid-template-columns:minmax(0,1fr) 82px 82px;gap:8px;align-items:center}
+.nomed .eh,.nomed .er{grid-template-columns:minmax(0,1fr) 92px}
+.eh{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:0 0 6px}
+.er{padding:10px 0;border-top:1px solid var(--line)}
+.er input{font:inherit;font-size:15px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;min-width:0;width:100%}
+.er input:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.er input.num{text-align:right}
+.er.off input.f-name{color:var(--muted);text-decoration:line-through}
+.er.dirty{background:linear-gradient(90deg,rgba(255,198,26,.06),transparent)}
+.racts{grid-column:1/-1;display:flex;align-items:center;gap:6px}
+.racts .sp{flex:1}
+.racts .b{min-height:36px;padding:7px 12px;font-size:13px}
+.b.pri:disabled{background:var(--raise);color:var(--muted);cursor:default}
+.b.del.armed{color:#fff;background:#7a2f27}
+.er.add{border-top:1px dashed var(--line)}
+.er.add input{background:transparent;border-style:dashed}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--text);color:var(--ink);padding:11px 18px;border-radius:10px;font-weight:600;font-size:14px;z-index:9;max-width:calc(100% - 32px)}
 .toast[hidden]{display:none}
 .hide{display:none!important}
@@ -260,7 +277,7 @@ function card(o){
   else if(o.status==='listo')act=`<button class="b pri" data-a="next" data-id="${o.id}" type="button">${dlv?'Entregado':'Recogido'}</button>`;
   const when=o.status==='ent'?`hace ${mins(o)} min`:`${mins(o)} min`;
   const feeTxt=o.fee_pending?'delivery por confirmar':o.fee?'incluye delivery '+fmt(o.fee):'sin delivery';
-  const feeBox=o.fee_pending&&o.status!=='ent'?`<div class="fee"><label for="fee-${o.id}">Costo del delivery</label><input id="fee-${o.id}" inputmode="numeric" placeholder="RD$"><button class="b sec" data-fee="${o.id}" type="button">Enviar</button></div>`:'';
+  const feeBox=dlv&&o.status!=='ent'?`<div class="fee"><label for="fee-${o.id}">${o.fee_pending?'Costo del delivery':'Delivery'}</label><input id="fee-${o.id}" inputmode="numeric" placeholder="RD$" value="${o.fee_pending?'':o.fee}"><button class="b sec" data-fee="${o.id}" type="button">${o.fee_pending?'Enviar':'Cambiar'}</button></div>`:'';
   return `<article class="card${late?' late':''}${o.status==='ent'?' fin':''}">
     <div class="hd"><div><span class="id">#${o.id}</span><span class="who">${esc(o.customer)}</span></div><span class="mins num">${late?'Demora · ':''}${when}</span></div>
     <div class="tags"><span class="tag${dlv?' dlv':''}">${dlv?'Delivery':'Recoger'}</span>${payTag}${o.notes?`<span class="tag">${esc(o.notes)}</span>`:''}${o.has_proof_image?`<button class="link" data-proof="${o.id}" type="button">Ver comprobante</button>`:''}</div>
@@ -271,7 +288,7 @@ function card(o){
   </article>`;
 }
 function board(){
-  const keep={};document.querySelectorAll('.fee input').forEach(i=>{if(i.value)keep[i.id]=i.value});
+  const keep={};document.querySelectorAll('.fee input').forEach(i=>{if(i.value!==i.defaultValue)keep[i.id]=i.value});
   $('#board').innerHTML=SEC.map(([k,label])=>{
     const list=S.orders.filter(o=>o.status===k).sort((a,b)=>a.at-b.at);
     const body=list.length?list.map(card).join(''):'<div class="empty">Sin pedidos aquí.</div>';
@@ -289,16 +306,47 @@ function summary(){
   $('#hoursL').innerHTML=hs.map(([h])=>`<span>${h-12} PM</span>`).join('');
   $('#freq').innerHTML=S.freq.length?S.freq.map(f=>`<tr><td>${esc(f.name)}</td><td class="num">${f.n}</td><td class="r num">${fmt(f.spent)}</td></tr>`).join(''):'<tr><td colspan="3" class="empty">Sin pedidos este mes.</td></tr>';
 }
-function menu(){
-  const groups=[['Pizzas grandes',m=>m.category==='pizza'&&m.size!=='pedazo'],['Pedazos',m=>m.size==='pedazo'],['Extras',m=>m.category==='extra'],['Bebidas',m=>m.category==='bebida']];
-  $('#menuList').innerHTML=groups.map(([g,f])=>{
-    const items=S.menu.filter(f);if(!items.length)return'';
-    return `<div class="mgrp"><h2 class="t">${g}</h2>`+items.map(m=>`<div class="mrow${m.available?'':' off'}"><div class="l"><span class="n">${esc(m.name)}</span><span class="p">${fmt(m.price)}${m.price_medium?' · mediana '+fmt(m.price_medium):''}</span></div>
-      <button class="avail" data-m="${m.id}" aria-pressed="${m.available}" type="button"><span>${m.available?'Disponible':'Agotado'}</span><span class="track" aria-hidden="true"></span></button></div>`).join('')+'</div>';
-  }).join('');
+const dirty=new Set();let forceMenu=false;
+const GROUPS=[
+  {key:'pizza',title:'Pizzas',f:m=>m.category==='pizza'&&m.size!=='pedazo',med:true,add:'Nueva pizza',cols:['Nombre','Grande','Mediana']},
+  {key:'pedazo',title:'Pedazos',f:m=>m.size==='pedazo',med:false,add:null,cols:['Nombre','Por pedazo']},
+  {key:'extra',title:'Extras',f:m=>m.category==='extra',med:false,add:'Nuevo extra',cols:['Nombre','Precio']},
+  {key:'bebida',title:'Bebidas',f:m=>m.category==='bebida',med:false,add:'Nueva bebida',cols:['Nombre','Precio']}];
+function menuRow(m,g){
+  const k=m?m.id:'new-'+g.key, v=(x)=>x==null?'':esc(x);
+  const acts=m
+    ?`<button class="avail" data-m="${m.id}" aria-pressed="${m.available}" type="button"><span>${m.available?'Disponible':'Agotado'}</span><span class="track" aria-hidden="true"></span></button><span class="sp"></span>${g.key!=='pedazo'?`<button class="b sec del" data-del="${m.id}" type="button">Eliminar</button>`:''}<button class="b pri" data-save="${k}" type="button" disabled>Guardar</button>`
+    :`<span class="sp"></span><button class="b pri" data-save="${k}" type="button" disabled>Agregar</button>`;
+  return `<div class="er${m?'':' add'}${m&&!m.available?' off':''}" data-row="${k}" data-cat="${g.key==='pedazo'?'pizza':g.key}">
+    <input class="f-name" id="n-${k}" value="${m?v(m.name):''}" placeholder="${m?'':esc(g.add)}" aria-label="Nombre" maxlength="60">
+    <input class="f-price num" id="p-${k}" inputmode="numeric" value="${m?v(m.price):''}" placeholder="RD$" aria-label="${g.cols[1]}">
+    ${g.med?`<input class="f-med num" id="m-${k}" inputmode="numeric" value="${m?v(m.price_medium):''}" placeholder="—" aria-label="Precio mediana">`:''}
+    <div class="racts">${acts}</div></div>`;
 }
+function menu(){
+  const keep={};
+  dirty.forEach(k=>{document.querySelectorAll(`[data-row="${k}"] input`).forEach(i=>keep[i.id]=i.value)});
+  $('#menuList').innerHTML='<p class="mhelp">Los cambios se guardan al tocar Guardar y el bot los usa en el siguiente mensaje. Deja la mediana vacía si esa pizza no se vende en mediana.</p>'+GROUPS.map(g=>{
+    const items=S.menu.filter(g.f);
+    if(!items.length&&!g.add)return'';
+    return `<div class="mgrp${g.med?'':' nomed'}"><h2 class="t">${g.title}</h2><div class="eh">${g.cols.map((c,i)=>`<span${i?' style="text-align:right"':''}>${c}</span>`).join('')}</div>`+
+      items.map(m=>menuRow(m,g)).join('')+(g.add?menuRow(null,g):'')+'</div>';
+  }).join('');
+  Object.entries(keep).forEach(([id,val])=>{const i=document.getElementById(id);if(i)i.value=val});
+  dirty.forEach(k=>{const r=document.querySelector(`[data-row="${k}"]`);if(r){r.classList.add('dirty');const b=r.querySelector('[data-save]');if(b)b.disabled=false}else dirty.delete(k)});
+}
+const menuBusy=()=>dirty.size>0||(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('#menuList input'));
+document.addEventListener('input',e=>{
+  const r=e.target.closest('#menuList .er');if(!r)return;
+  dirty.add(r.dataset.row);r.classList.add('dirty');r.querySelector('[data-save]').disabled=false;
+});
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter')return;const r=e.target.closest('#menuList .er');if(!r)return;
+  e.preventDefault();const b=r.querySelector('[data-save]');if(b&&!b.disabled)b.click();
+});
+const numVal=v=>{const t=String(v).trim();if(t==='')return null;const n=Number(t.replace(/[^0-9.]/g,''));return Number.isFinite(n)?n:NaN};
 function openSw(){const b=$('#openSw');b.setAttribute('aria-pressed',S.accepting);$('#openTxt').textContent=S.accepting?'Abierto':'Cerrado';}
-function render(){attention();kpis();board();summary();menu();openSw();}
+function render(){attention();kpis();board();summary();if(forceMenu||!menuBusy()){menu();forceMenu=false;}openSw();}
 
 let tt;
 function toast(t){const e=$('#toast');e.textContent=t;e.hidden=false;clearTimeout(tt);tt=setTimeout(()=>e.hidden=true,2800);}
@@ -338,9 +386,41 @@ document.addEventListener('click',async e=>{
   const m=e.target.closest('[data-m]');
   if(m){
     const item=S.menu.find(x=>x.id===m.dataset.m);if(!item)return;
-    try{await call('set_available',{id:item.id,available:!item.available});toast(item.available?'El bot deja de ofrecerlo.':'Vuelve a ofrecerse en el bot.');}
-    catch(err){toast('No se guardó el cambio.');}
-    load();return;
+    try{
+      await call('set_available',{id:item.id,available:!item.available});
+      item.available=!item.available;
+      m.setAttribute('aria-pressed',item.available);m.querySelector('span').textContent=item.available?'Disponible':'Agotado';
+      m.closest('.er').classList.toggle('off',!item.available);
+      toast(item.available?'Vuelve a ofrecerse en el bot.':'El bot deja de ofrecerlo.');
+    }catch(err){toast('No se guardó el cambio.');}
+    return;
+  }
+  const sv=e.target.closest('[data-save]');
+  if(sv){
+    const key=sv.dataset.save,row=sv.closest('.er'),isNew=key.startsWith('new-');
+    const name=row.querySelector('.f-name').value.trim();
+    const price=numVal(row.querySelector('.f-price').value);
+    const medEl=row.querySelector('.f-med');const med=medEl?numVal(medEl.value):null;
+    if(!name){toast('Escribe el nombre.');row.querySelector('.f-name').focus();return;}
+    if(price===null||Number.isNaN(price)){toast('Escribe un precio válido.');row.querySelector('.f-price').focus();return;}
+    if(Number.isNaN(med)){toast('El precio de la mediana no es válido.');medEl.focus();return;}
+    const item={category:row.dataset.cat,name,price,price_medium:med};
+    if(!isNew)item.id=key;
+    sv.disabled=true;
+    try{await call('menu_save',{item});dirty.delete(key);toast(isNew?`${name} se agregó al menú.`:`${name} se guardó.`);}
+    catch(err){toast('No se guardó. Revisa el nombre y los precios.');sv.disabled=false;return;}
+    forceMenu=true;load();return;
+  }
+  const del=e.target.closest('[data-del]');
+  if(del){
+    if(!del.classList.contains('armed')){
+      del.classList.add('armed');del.textContent='¿Seguro?';
+      setTimeout(()=>{if(del.isConnected){del.classList.remove('armed');del.textContent='Eliminar';}},4000);return;
+    }
+    const id=del.dataset.del,it=S.menu.find(x=>x.id===id);
+    try{await call('menu_delete',{id});dirty.delete(id);toast(`${it?it.name:'Producto'} se eliminó del menú.`);}
+    catch(err){toast('No se pudo eliminar.');}
+    forceMenu=true;load();return;
   }
   const t=e.target.closest('[data-tab]');
   if(t){
@@ -354,7 +434,7 @@ $('#openSw').addEventListener('click',async()=>{
 });
 load();
 setInterval(()=>{
-  const busy=document.activeElement&&document.activeElement.matches('.fee input');
+  const busy=document.activeElement&&document.activeElement.matches('.fee input, #menuList input');
   if(!document.hidden&&$('#login').hidden&&$('#ov').hidden&&!busy)load();
 },15000);
 </script>

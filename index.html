@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel Dorian Pizzería</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Plan: negro suave, amarillo de la marca solo para lo importante, rojo solo en acciones.
+   Layout: columnas por estado en pantalla grande, una sola columna en celular. Esquinas suaves, sin bordes pesados. */
+:root{
+  --ink:#0e0d0c; --panel:#171513; --raise:#211e1b; --line:#26231f;
+  --text:#f2ede2; --muted:#8f887c; --gold:#ffc61a; --gold-ink:#140f00;
+  --red:#d71920; --ok:#5cb86a; --warn:#ff8a7a;
+  --display:'Anton','Impact','Arial Narrow',sans-serif;
+  --body:'Barlow','Segoe UI',system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--ink);color:var(--text);font-family:var(--body);font-size:15px;line-height:1.4;-webkit-text-size-adjust:100%}
+body{min-height:100%}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,summary:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+
+.top{position:sticky;top:0;z-index:5;background:var(--ink);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px 10px;max-width:1200px;margin:0 auto}
+.brand{display:flex;flex-direction:column;line-height:1}
+.brand b{font-family:var(--display);font-weight:400;font-size:26px;letter-spacing:.04em;color:var(--gold);text-transform:uppercase}
+.brand span{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.sw{display:flex;align-items:center;gap:10px;background:var(--panel);padding:7px 8px 7px 14px;border-radius:999px}
+.sw .st{font-weight:600;font-size:14px}
+.track{flex:none;width:36px;height:20px;background:var(--line);border-radius:999px;position:relative;transition:background .15s}
+.track::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:transform .15s,background .15s}
+.sw[aria-pressed="true"] .track,.avail[aria-pressed="true"] .track{background:var(--gold)}
+.sw[aria-pressed="true"] .track::after,.avail[aria-pressed="true"] .track::after{transform:translateX(16px);background:var(--gold-ink)}
+.tabs{display:flex;gap:26px;max-width:1200px;margin:0 auto;padding:0 18px}
+.tab{padding:8px 0 10px;font-weight:600;font-size:14px;color:var(--muted);border-bottom:2px solid transparent}
+.tab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--gold)}
+
+main{max-width:1200px;margin:0 auto;padding:20px 18px 64px}
+.demo{font-size:12px;color:var(--muted);margin-bottom:22px}
+.demo b{color:var(--gold);font-weight:600}
+
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:20px 16px;padding-bottom:24px;margin-bottom:26px;border-bottom:1px solid var(--line)}
+@media(min-width:700px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi .k{font-size:12px;color:var(--muted)}
+.kpi .v{font-size:27px;font-weight:600;line-height:1.2;margin-top:2px;white-space:nowrap;letter-spacing:-.01em}
+.kpi .v small{font-size:12px;font-weight:400;color:var(--muted);margin-left:6px;letter-spacing:0}
+
+.board{display:grid;gap:30px;grid-template-columns:minmax(0,1fr)}
+.col{min-width:0}
+@media(min-width:900px){.board{grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;align-items:start}}
+.col h2,.sec h2.t{display:flex;align-items:baseline;gap:8px;font-family:var(--body);font-weight:600;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.col h2 em{font-style:normal;font-weight:600;font-size:12px;color:var(--gold);letter-spacing:0}
+.col.done h2 em{color:var(--muted)}
+.list{display:flex;flex-direction:column;gap:10px}
+.empty{color:var(--muted);font-size:13px;padding:6px 0}
+
+.card{background:var(--panel);border-radius:10px;padding:14px 14px 12px}
+.card.late{box-shadow:inset 0 0 0 1px var(--gold)}
+.card.fin{opacity:.6}
+.hd{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.hd .id{font-weight:600;color:var(--muted)}
+.hd .who{font-weight:600;font-size:16px;margin-left:8px}
+.mins{font-size:12px;color:var(--muted);white-space:nowrap}
+.card.late .mins{color:var(--gold);font-weight:600}
+.tags{display:flex;flex-wrap:wrap;gap:4px 12px;margin:6px 0 10px}
+.tag{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+.tag::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.tag.dlv{color:var(--gold)}
+.tag.ok{color:var(--ok)}
+.tag.warn{color:var(--warn)}
+.items{list-style:none;font-size:14px;margin-bottom:6px}
+.items li{display:flex;gap:8px;padding:2px 0}
+.items li b{min-width:22px;color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums}
+.addr{font-size:13px;color:var(--muted);margin-bottom:4px}
+.ft{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}
+.tot{font-size:19px;font-weight:600}
+.tot small{display:block;font-size:11px;font-weight:400;color:var(--muted)}
+.acts{display:flex;gap:6px}
+.b{padding:9px 16px;font-weight:600;font-size:14px;min-height:40px;border-radius:8px}
+.b.pri{background:var(--red);color:#fff}
+.b.pri:active{background:#a8131a}
+.b.sec{color:var(--muted)}
+.b.sec:hover{color:var(--text)}
+
+.grid2{display:grid;gap:30px}
+@media(min-width:900px){.grid2{grid-template-columns:1fr 1fr}}
+.hb{display:grid;grid-template-columns:minmax(110px,38%) 1fr auto;gap:12px;align-items:center;padding:7px 0;font-size:14px}
+.hb .bar2{height:6px;background:var(--raise);border-radius:3px;overflow:hidden}
+.hb .bar2 i{display:block;height:100%;background:var(--gold);border-radius:3px}
+.hb b{font-weight:600;font-variant-numeric:tabular-nums}
+.vb{display:flex;align-items:flex-end;gap:10px;height:170px}
+.vb div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;height:100%}
+.vb i{display:block;width:100%;max-width:34px;background:var(--gold);border-radius:4px 4px 0 0}
+.vb span{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.vl{display:flex;gap:10px;margin-top:8px;border-top:1px solid var(--line);padding-top:6px}
+.vl span{flex:1;text-align:center;font-size:12px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:500;padding:6px 8px 8px 0}
+td{padding:11px 8px 11px 0;border-top:1px solid var(--line)}
+td.r,th.r{text-align:right;padding-right:0}
+
+.mgrp{margin-bottom:28px}
+.mrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+.mrow .n{font-weight:500}
+.mrow .p{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.mrow.off .n{color:var(--muted);text-decoration:line-through}
+.mrow .l{display:flex;flex-direction:column}
+.avail{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+
+.login{position:fixed;inset:0;z-index:20;background:var(--ink);display:flex;align-items:center;justify-content:center;padding:24px}
+.login[hidden]{display:none}
+.login form{width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px}
+.login .brand{margin-bottom:14px}
+.login label{font-size:13px;color:var(--muted)}
+.login input{font:inherit;font-size:18px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.login input:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.login .err{color:var(--warn);font-size:13px}
+.login .b{min-height:46px}
+.attn{background:var(--panel);border-radius:10px;padding:14px;margin-bottom:22px;box-shadow:inset 0 0 0 1px var(--gold)}
+.attn h2{display:flex;gap:8px;align-items:baseline;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:6px}
+.arow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.arow:first-of-type{border-top:0}
+.arow b{display:block;font-weight:600}
+.arow a{color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
+.items li small{display:block;color:var(--gold);font-size:12px}
+.addr a,.link{color:var(--gold);font-size:13px;text-decoration:underline;text-underline-offset:2px}
+.link{padding:0}
+.fee{display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px;background:var(--raise);border-radius:8px}
+.fee label{font-size:13px;color:var(--muted);flex:none}
+.fee input{flex:1;min-width:0;width:100%;font:inherit;color:var(--text);background:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.fee input:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.ov{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:16px}
+.ov[hidden]{display:none}
+.ovb{display:flex;flex-direction:column;gap:12px;align-items:center;max-width:520px;width:100%}
+.ovb img{max-width:100%;max-height:75vh;border-radius:8px;background:var(--panel)}
+.ovb p{color:var(--muted);font-size:14px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--text);color:var(--ink);padding:11px 18px;border-radius:10px;font-weight:600;font-size:14px;z-index:9;max-width:calc(100% - 32px)}
+.toast[hidden]{display:none}
+.hide{display:none!important}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="bar">
+    <div class="brand"><b>Dorian</b><span>Pizzería · Panel de pedidos</span></div>
+    <button class="sw" id="openSw" aria-pressed="true" type="button">
+      <span class="st" id="openTxt">Abierto</span>
+      <span class="track" aria-hidden="true"></span>
+    </button>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-tab="pedidos" type="button">Pedidos</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="resumen" type="button">Resumen</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="menu" type="button">Menú</button>
+  </div>
+</header>
+
+<main>
+
+  <section id="v-pedidos">
+    <div id="attn"></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="board" id="board"></div>
+  </section>
+
+  <section id="v-resumen" class="hide sec">
+    <div class="kpis" id="kpis2"></div>
+    <div class="grid2">
+      <div><h2 class="t">Pizzas más vendidas hoy</h2><div id="top"></div></div>
+      <div><h2 class="t">Pedidos por hora</h2><div class="vb" id="hours"></div><div class="vl" id="hoursL"></div></div>
+    </div>
+    <div style="margin-top:28px"><h2 class="t">Clientes frecuentes este mes</h2>
+      <table><thead><tr><th>Cliente</th><th>Pedidos</th><th class="r">Gastado</th></tr></thead><tbody id="freq"></tbody></table>
+    </div>
+  </section>
+
+  <section id="v-menu" class="hide sec"><div id="menuList"></div></section>
+</main>
+<div class="login" id="login" hidden>
+  <form id="loginForm" autocomplete="off">
+    <div class="brand"><b>Dorian</b><span>Pizzería · Panel de pedidos</span></div>
+    <label for="pin">Clave de acceso</label>
+    <input id="pin" type="password" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+    <p class="err" id="pinErr" hidden>La clave no es correcta.</p>
+    <button class="b pri" type="submit">Entrar</button>
+  </form>
+</div>
+<div class="ov" id="ov" hidden><div class="ovb"><img id="ovImg" alt="Comprobante de transferencia"><p id="ovMsg" hidden></p><button class="b sec" id="ovClose" type="button">Cerrar</button></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const API='https://xwqtapylonyotyebrhtp.supabase.co/functions/v1/dorian-panel';
+const fmt=n=>'RD$ '+Number(n).toLocaleString('es-DO');
+const $=s=>document.querySelector(s);
+const SEC=[['conf','Por confirmar'],['horno','En horno'],['listo','Listos y en camino'],['ent','Entregados']];
+const ORDER=['conf','horno','listo','ent'];
+const PAY={transferencia:'Transferencia',efectivo:'Efectivo',tarjeta:'Tarjeta'};
+let S={orders:[],menu:[],top:[],hours:[],freq:[],attention:[],accepting:true};
+let pin='';try{pin=localStorage.getItem('dorianPin')||''}catch(e){}
+
+async function call(action,extra){
+  const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json','x-panel-pin':pin},body:JSON.stringify({action,...extra})});
+  if(r.status===401){const e=new Error('pin');e.pin=true;throw e}
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok){const e=new Error(d.error||'server');e.code=d.error;throw e}
+  return d;
+}
+function showLogin(err){$('#login').hidden=false;$('#pinErr').hidden=!err;setTimeout(()=>$('#pin').focus(),50)}
+async function load(){
+  try{const d=await call('list');S=d;$('#login').hidden=true;render();}
+  catch(e){if(e.pin){showLogin(!!pin);}else{toast('No se pudo conectar. Reintentando.');}}
+}
+$('#loginForm').addEventListener('submit',e=>{
+  e.preventDefault();pin=$('#pin').value.trim().toLowerCase();
+  try{localStorage.setItem('dorianPin',pin)}catch(x){}
+  load();
+});
+
+const mins=o=>Math.max(0,Math.round((Date.now()-o.at)/60000));
+const isLate=o=>(o.status==='conf'||o.status==='horno')&&mins(o)>20;
+const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const phoneTxt=p=>{const d=String(p||'').replace(/\D/g,'');return d.length===11&&d[0]==='1'?`${d.slice(1,4)}-${d.slice(4,7)}-${d.slice(7)}`:String(p||'')};
+
+function kpis(){
+  const paid=S.orders.filter(o=>o.status!=='conf');
+  const sales=paid.reduce((a,o)=>a+o.total,0);
+  const avg=paid.length?Math.round(sales/paid.length):0;
+  const act=S.orders.filter(o=>o.status!=='ent').length;
+  const late=S.orders.filter(isLate).length;
+  const h=`<div class="kpi"><div class="k">Ventas de hoy</div><div class="v num">${fmt(sales)}</div></div>
+   <div class="kpi"><div class="k">Pedidos</div><div class="v num">${S.orders.length}<small>${act} activos</small></div></div>
+   <div class="kpi"><div class="k">Ticket promedio</div><div class="v num">${fmt(avg)}</div></div>
+   <div class="kpi"><div class="k">Con demora</div><div class="v num" style="color:${late?'var(--gold)':'var(--text)'}">${late}<small>más de 20 min</small></div></div>`;
+  $('#kpis').innerHTML=h;$('#kpis2').innerHTML=h;
+}
+function attention(){
+  const a=S.attention||[];
+  $('#attn').innerHTML=a.length?`<div class="attn"><h2>Llamar al cliente <em class="num">${a.length}</em></h2>${a.map(p=>`<div class="arow"><div><b>${esc(p.name||'Cliente')}</b><a href="tel:+${esc(p.phone)}">${esc(phoneTxt(p.phone))}</a></div><button class="b sec" data-att="${esc(p.phone)}" type="button">Atendido</button></div>`).join('')}</div>`:'';
+}
+function addrHtml(a){
+  const m=String(a).match(/https?:\/\/\S+/);
+  const t=String(a).replace(/\s*·?\s*https?:\/\/\S+/,'').trim();
+  return `<div class="addr">${esc(t||'Ubicación enviada')}${m?` · <a href="${esc(m[0])}" target="_blank" rel="noopener">Ver en el mapa</a>`:''}</div>`;
+}
+function card(o){
+  const late=isLate(o),dlv=o.type==='delivery';
+  const items=o.items.map(i=>`<li><b>${i.qty}×</b><span>${esc(i.name)}${i.note?`<small>${esc(i.note)}</small>`:''}</span></li>`).join('');
+  const payTag=o.pay==='transferencia'
+    ?(o.proof?'<span class="tag ok">Comprobante recibido</span>':'<span class="tag warn">Falta comprobante</span>')
+    :`<span class="tag">${PAY[o.pay]||esc(o.pay)}</span>`;
+  let act='';
+  if(o.status==='conf')act=`<button class="b sec" data-a="cancel" data-id="${o.id}" type="button">Cancelar</button><button class="b pri" data-a="next" data-id="${o.id}" type="button">${o.pay==='transferencia'?'Confirmar pago':'Aceptar'}</button>`;
+  else if(o.status==='horno')act=`<button class="b pri" data-a="next" data-id="${o.id}" type="button">Listo</button>`;
+  else if(o.status==='listo')act=`<button class="b pri" data-a="next" data-id="${o.id}" type="button">${dlv?'Entregado':'Recogido'}</button>`;
+  const when=o.status==='ent'?`hace ${mins(o)} min`:`${mins(o)} min`;
+  const feeTxt=o.fee_pending?'delivery por confirmar':o.fee?'incluye delivery '+fmt(o.fee):'sin delivery';
+  const feeBox=o.fee_pending&&o.status!=='ent'?`<div class="fee"><label for="fee-${o.id}">Costo del delivery</label><input id="fee-${o.id}" inputmode="numeric" placeholder="RD$"><button class="b sec" data-fee="${o.id}" type="button">Enviar</button></div>`:'';
+  return `<article class="card${late?' late':''}${o.status==='ent'?' fin':''}">
+    <div class="hd"><div><span class="id">#${o.id}</span><span class="who">${esc(o.customer)}</span></div><span class="mins num">${late?'Demora · ':''}${when}</span></div>
+    <div class="tags"><span class="tag${dlv?' dlv':''}">${dlv?'Delivery':'Recoger'}</span>${payTag}${o.notes?`<span class="tag">${esc(o.notes)}</span>`:''}${o.has_proof_image?`<button class="link" data-proof="${o.id}" type="button">Ver comprobante</button>`:''}</div>
+    <ul class="items">${items}</ul>
+    ${o.address?addrHtml(o.address):''}
+    ${feeBox}
+    <div class="ft"><div class="tot num">${fmt(o.total)}<small>${feeTxt}</small></div><div class="acts">${act}</div></div>
+  </article>`;
+}
+function board(){
+  const keep={};document.querySelectorAll('.fee input').forEach(i=>{if(i.value)keep[i.id]=i.value});
+  $('#board').innerHTML=SEC.map(([k,label])=>{
+    const list=S.orders.filter(o=>o.status===k).sort((a,b)=>a.at-b.at);
+    const body=list.length?list.map(card).join(''):'<div class="empty">Sin pedidos aquí.</div>';
+    return `<div class="col${k==='ent'?' done':''}"><h2>${label}<em class="num">${list.length}</em></h2><div class="list">${body}</div></div>`;
+  }).join('');
+  Object.entries(keep).forEach(([id,v])=>{const i=document.getElementById(id);if(i)i.value=v});
+}
+function summary(){
+  const mx=S.top.length?S.top[0].qty:1;
+  $('#top').innerHTML=S.top.length?S.top.map(t=>`<div class="hb"><span>${esc(t.name)}</span><div class="bar2"><i style="width:${t.qty/mx*100}%"></i></div><b>${t.qty}</b></div>`).join(''):'<div class="empty">Todavía no hay ventas hoy.</div>';
+  const byH={};S.hours.forEach(h=>byH[h.h]=h.n);
+  const hs=[18,19,20,21,22,23].map(h=>[h,byH[h]||0]);
+  const hm=Math.max(1,...hs.map(h=>h[1]));
+  $('#hours').innerHTML=hs.map(([h,v])=>`<div><span>${v}</span><i style="height:${v?v/hm*120+4:2}px"></i></div>`).join('');
+  $('#hoursL').innerHTML=hs.map(([h])=>`<span>${h-12} PM</span>`).join('');
+  $('#freq').innerHTML=S.freq.length?S.freq.map(f=>`<tr><td>${esc(f.name)}</td><td class="num">${f.n}</td><td class="r num">${fmt(f.spent)}</td></tr>`).join(''):'<tr><td colspan="3" class="empty">Sin pedidos este mes.</td></tr>';
+}
+function menu(){
+  const groups=[['Pizzas grandes',m=>m.category==='pizza'&&m.size!=='pedazo'],['Pedazos',m=>m.size==='pedazo'],['Extras',m=>m.category==='extra'],['Bebidas',m=>m.category==='bebida']];
+  $('#menuList').innerHTML=groups.map(([g,f])=>{
+    const items=S.menu.filter(f);if(!items.length)return'';
+    return `<div class="mgrp"><h2 class="t">${g}</h2>`+items.map(m=>`<div class="mrow${m.available?'':' off'}"><div class="l"><span class="n">${esc(m.name)}</span><span class="p">${fmt(m.price)}${m.price_medium?' · mediana '+fmt(m.price_medium):''}</span></div>
+      <button class="avail" data-m="${m.id}" aria-pressed="${m.available}" type="button"><span>${m.available?'Disponible':'Agotado'}</span><span class="track" aria-hidden="true"></span></button></div>`).join('')+'</div>';
+  }).join('');
+}
+function openSw(){const b=$('#openSw');b.setAttribute('aria-pressed',S.accepting);$('#openTxt').textContent=S.accepting?'Abierto':'Cerrado';}
+function render(){attention();kpis();board();summary();menu();openSw();}
+
+let tt;
+function toast(t){const e=$('#toast');e.textContent=t;e.hidden=false;clearTimeout(tt);tt=setTimeout(()=>e.hidden=true,2800);}
+const sentNote=d=>d&&d.notified?' Se le avisó al cliente.':'';
+
+document.addEventListener('click',async e=>{
+  const a=e.target.closest('[data-a]');
+  if(a){
+    const o=S.orders.find(x=>x.id==a.dataset.id);if(!o)return;
+    const status=a.dataset.a==='next'?ORDER[ORDER.indexOf(o.status)+1]:'cancelado';
+    a.disabled=true;
+    try{const d=await call('set_status',{id:Number(o.id),status});
+      toast((status==='cancelado'?`Pedido #${o.id} cancelado.`:`#${o.id} pasó a ${SEC.find(s=>s[0]===status)[1].toLowerCase()}.`)+sentNote(d));}
+    catch(err){toast('No se guardó el cambio. Intenta otra vez.');}
+    load();return;
+  }
+  const f=e.target.closest('[data-fee]');
+  if(f){
+    const id=f.dataset.fee,inp=document.getElementById('fee-'+id);
+    const fee=Number(String(inp.value).replace(/[^0-9.]/g,''));
+    if(!inp.value||!Number.isFinite(fee)||fee<0){toast('Escribe el costo del delivery en pesos.');inp.focus();return;}
+    f.disabled=true;
+    try{const d=await call('set_fee',{id:Number(id),fee});inp.value='';toast(`Delivery de ${fmt(fee)} guardado.`+sentNote(d));}
+    catch(err){toast('No se guardó el costo. Intenta otra vez.');}
+    load();return;
+  }
+  const pr=e.target.closest('[data-proof]');
+  if(pr){
+    $('#ov').hidden=false;$('#ovImg').hidden=true;$('#ovMsg').hidden=false;$('#ovMsg').textContent='Cargando comprobante…';
+    try{const d=await call('proof_image',{id:Number(pr.dataset.proof)});$('#ovImg').src=d.data;$('#ovImg').hidden=false;$('#ovMsg').hidden=true;}
+    catch(err){$('#ovMsg').textContent='No se pudo cargar la imagen. Revisa que WhatsApp esté conectado.';}
+    return;
+  }
+  if(e.target.closest('#ovClose')||e.target.id==='ov'){$('#ov').hidden=true;$('#ovImg').removeAttribute('src');return;}
+  const at=e.target.closest('[data-att]');
+  if(at){try{await call('resolve_attention',{phone:at.dataset.att});}catch(err){toast('No se guardó el cambio.');}load();return;}
+  const m=e.target.closest('[data-m]');
+  if(m){
+    const item=S.menu.find(x=>x.id===m.dataset.m);if(!item)return;
+    try{await call('set_available',{id:item.id,available:!item.available});toast(item.available?'El bot deja de ofrecerlo.':'Vuelve a ofrecerse en el bot.');}
+    catch(err){toast('No se guardó el cambio.');}
+    load();return;
+  }
+  const t=e.target.closest('[data-tab]');
+  if(t){
+    document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===t));
+    ['pedidos','resumen','menu'].forEach(v=>$('#v-'+v).classList.toggle('hide',v!==t.dataset.tab));return;
+  }
+});
+$('#openSw').addEventListener('click',async()=>{
+  try{await call('set_accepting',{value:!S.accepting});toast(S.accepting?'Marcado como cerrado. El bot toma pedidos para cuando abran.':'Marcado como abierto.');}catch(e){toast('No se guardó el cambio.');}
+  load();
+});
+load();
+setInterval(()=>{
+  const busy=document.activeElement&&document.activeElement.matches('.fee input');
+  if(!document.hidden&&$('#login').hidden&&$('#ov').hidden&&!busy)load();
+},15000);
+</script>
+</body>
+</html>

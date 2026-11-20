@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel Dorian Pizzería</title>
+<meta name="theme-color" content="#0e0d0c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Dorian Panel">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -29,6 +37,10 @@ button:focus-visible,summary:focus-visible{outline:2px solid var(--gold);outline
 .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px 10px;max-width:1200px;margin:0 auto}
 .brand{display:flex;flex-direction:column;line-height:1}
 .brand b{font-family:var(--display);font-weight:400;font-size:26px;letter-spacing:.04em;color:var(--gold);text-transform:uppercase}
+.right{display:flex;align-items:center;gap:10px}
+.inst{white-space:nowrap;font-weight:700;font-size:13px;letter-spacing:.02em;padding:8px 12px;background:var(--gold);color:var(--gold-ink);border-radius:4px}
+.inst[hidden]{display:none}
+@media(max-width:480px){.brand{min-width:0}.brand b{font-size:22px}.brand span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.inst{padding:8px 10px}}
 .brand span{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-top:4px}
 .sw{display:flex;align-items:center;gap:10px;background:var(--panel);padding:7px 8px 7px 14px;border-radius:999px}
 .sw .st{font-weight:600;font-size:14px}
@@ -52,7 +64,8 @@ main{max-width:1200px;margin:0 auto;padding:20px 18px 64px}
 
 .board{display:grid;gap:30px;grid-template-columns:minmax(0,1fr)}
 .col{min-width:0}
-@media(min-width:900px){.board{grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;align-items:start}}
+@media(min-width:900px){.board{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}}
+@media(min-width:1200px){.board{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .col h2,.sec h2.t{display:flex;align-items:baseline;gap:8px;font-family:var(--body);font-weight:600;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
 .col h2 em{font-style:normal;font-weight:600;font-size:12px;color:var(--gold);letter-spacing:0}
 .col.done h2 em{color:var(--muted)}
@@ -77,10 +90,10 @@ main{max-width:1200px;margin:0 auto;padding:20px 18px 64px}
 .items li{display:flex;gap:8px;padding:2px 0}
 .items li b{min-width:22px;color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums}
 .addr{font-size:13px;color:var(--muted);margin-bottom:4px}
-.ft{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}
-.tot{font-size:19px;font-weight:600}
+.ft{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}
+.tot{font-size:19px;font-weight:600;white-space:nowrap}
 .tot small{display:block;font-size:11px;font-weight:400;color:var(--muted)}
-.acts{display:flex;gap:6px}
+.acts{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;margin-left:auto}
 .b{padding:9px 16px;font-weight:600;font-size:14px;min-height:40px;border-radius:8px}
 .b.pri{background:var(--red);color:#fff}
 .b.pri:active{background:#a8131a}
@@ -177,10 +190,13 @@ td.r,th.r{text-align:right;padding-right:0}
 <header class="top">
   <div class="bar">
     <div class="brand"><b>Dorian</b><span>Pizzería · Panel de pedidos</span></div>
-    <button class="sw" id="openSw" aria-pressed="true" type="button">
-      <span class="st" id="openTxt">Abierto</span>
-      <span class="track" aria-hidden="true"></span>
-    </button>
+    <div class="right">
+      <button class="inst" id="installBtn" type="button" hidden>Instalar app</button>
+      <button class="sw" id="openSw" aria-pressed="true" type="button">
+        <span class="st" id="openTxt">Abierto</span>
+        <span class="track" aria-hidden="true"></span>
+      </button>
+    </div>
   </div>
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" aria-selected="true" data-tab="pedidos" type="button">Pedidos</button>
@@ -484,6 +500,13 @@ setInterval(()=>{
   const busy=document.activeElement&&document.activeElement.matches('.fee input, #menuList input, #bankText');
   if(!document.hidden&&$('#login').hidden&&$('#ov').hidden&&!busy)load();
 },15000);
+
+// Instalar como app (Chrome en Android o computadora). En iPad: Compartir > Agregar a pantalla de inicio.
+let installEvt=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;$('#installBtn').hidden=false;});
+$('#installBtn').addEventListener('click',async()=>{if(!installEvt)return;installEvt.prompt();await installEvt.userChoice.catch(()=>{});installEvt=null;$('#installBtn').hidden=true;});
+window.addEventListener('appinstalled',()=>{$('#installBtn').hidden=true;toast('Panel instalado en la pantalla de inicio');});
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script>
 </body>
 </html>

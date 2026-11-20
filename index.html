@@ -126,13 +126,24 @@ td.r,th.r{text-align:right;padding-right:0}
 .arow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
 .arow:first-of-type{border-top:0}
 .arow b{display:block;font-weight:600}
+.arow .why{display:block;font-size:13px;color:var(--text);margin:2px 0}
+.arow .until{display:block;font-size:12px;color:var(--gold)}
+.arow .acts2{display:flex;gap:6px;align-items:center;flex:none}
+.tag.wait{color:var(--gold)}
+.bank{background:var(--panel);border-radius:10px;padding:14px;margin-bottom:26px}
+.bank h2{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:6px}
+.bank p{font-size:13px;color:var(--muted);margin-bottom:10px;max-width:60ch}
+.bank textarea{width:100%;min-height:84px;font:inherit;font-size:15px;color:var(--text);background:var(--ink);border:1px solid var(--line);border-radius:6px;padding:10px;resize:vertical}
+.bank textarea:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.bank .row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px}
+.bank .warnmsg{font-size:13px;color:var(--warn)}
 .arow a{color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
 .items li small{display:block;color:var(--gold);font-size:12px}
 .addr a,.link{color:var(--gold);font-size:13px;text-decoration:underline;text-underline-offset:2px}
 .link{padding:0}
-.fee{display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px;background:var(--raise);border-radius:8px}
-.fee label{font-size:13px;color:var(--muted);flex:none}
-.fee input{flex:1;min-width:0;width:100%;font:inherit;color:var(--text);background:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.fee{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;padding:10px;background:var(--raise);border-radius:8px}
+.fee label{font-size:13px;color:var(--muted);flex:1 0 100%}
+.fee input{flex:1 1 90px;min-width:0;width:100%;font:inherit;color:var(--text);background:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
 .fee input:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
 .ov{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:16px}
 .ov[hidden]{display:none}
@@ -197,7 +208,15 @@ td.r,th.r{text-align:right;padding-right:0}
     </div>
   </section>
 
-  <section id="v-menu" class="hide sec"><div id="menuList"></div></section>
+  <section id="v-menu" class="hide sec">
+    <div class="bank">
+      <h2>Cuentas para transferencia</h2>
+      <p>Una cuenta por línea, tal como la debe ver el cliente. El bot las envía junto con el total.</p>
+      <textarea id="bankText" aria-label="Cuentas para transferencia" placeholder="Banreservas · Ahorro · 000-000000-0 · Nombre del titular&#10;Popular · Corriente · 000000000 · Nombre del titular"></textarea>
+      <div class="row"><span class="warnmsg" id="bankWarn" hidden>Sin cuentas: el bot no puede enviar los datos para transferir.</span><span class="sp"></span><button class="b pri" id="bankSave" type="button">Guardar cuentas</button></div>
+    </div>
+    <div id="menuList"></div>
+  </section>
 </main>
 <div class="login" id="login" hidden>
   <form id="loginForm" autocomplete="off">
@@ -216,6 +235,7 @@ const API='https://xwqtapylonyotyebrhtp.supabase.co/functions/v1/dorian-panel';
 const fmt=n=>'RD$ '+Number(n).toLocaleString('es-DO');
 const $=s=>document.querySelector(s);
 const SEC=[['conf','Por confirmar'],['horno','En horno'],['listo','Listos y en camino'],['ent','Entregados']];
+const COL={esperando_delivery:'conf'};
 const ORDER=['conf','horno','listo','ent'];
 const PAY={transferencia:'Transferencia',efectivo:'Efectivo',tarjeta:'Tarjeta'};
 let S={orders:[],menu:[],top:[],hours:[],freq:[],attention:[],accepting:true};
@@ -240,12 +260,12 @@ $('#loginForm').addEventListener('submit',e=>{
 });
 
 const mins=o=>Math.max(0,Math.round((Date.now()-o.at)/60000));
-const isLate=o=>(o.status==='conf'||o.status==='horno')&&mins(o)>20;
+const isLate=o=>(o.status==='conf'||o.status==='horno'||o.status==='esperando_delivery')&&mins(o)>20;
 const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const phoneTxt=p=>{const d=String(p||'').replace(/\D/g,'');return d.length===11&&d[0]==='1'?`${d.slice(1,4)}-${d.slice(4,7)}-${d.slice(7)}`:String(p||'')};
 
 function kpis(){
-  const paid=S.orders.filter(o=>o.status!=='conf');
+  const paid=S.orders.filter(o=>o.status!=='conf'&&o.status!=='esperando_delivery');
   const sales=paid.reduce((a,o)=>a+o.total,0);
   const avg=paid.length?Math.round(sales/paid.length):0;
   const act=S.orders.filter(o=>o.status!=='ent').length;
@@ -258,7 +278,8 @@ function kpis(){
 }
 function attention(){
   const a=S.attention||[];
-  $('#attn').innerHTML=a.length?`<div class="attn"><h2>Llamar al cliente <em class="num">${a.length}</em></h2>${a.map(p=>`<div class="arow"><div><b>${esc(p.name||'Cliente')}</b><a href="tel:+${esc(p.phone)}">${esc(phoneTxt(p.phone))}</a></div><button class="b sec" data-att="${esc(p.phone)}" type="button">Atendido</button></div>`).join('')}</div>`:'';
+  const hh=t=>new Date(t).toLocaleTimeString('es-DO',{hour:'numeric',minute:'2-digit'});
+  $('#attn').innerHTML=a.length?`<div class="attn"><h2>Atención humana <em class="num">${a.length}</em></h2>${a.map(p=>`<div class="arow"><div><b>${esc(p.name||'Cliente')}</b>${p.reason?`<span class="why">${esc(p.reason)}</span>`:''}<a href="tel:+${esc(p.phone)}">${esc(phoneTxt(p.phone))}</a>${p.human&&p.until?`<span class="until">Bot pausado hasta las ${hh(p.until)}</span>`:''}</div><div class="acts2"><button class="b ${p.human?'pri':'sec'}" data-att="${esc(p.phone)}" type="button">${p.human?'Reactivar bot':'Atendido'}</button></div></div>`).join('')}</div>`:'';
 }
 function addrHtml(a){
   const m=String(a).match(/https?:\/\/\S+/);
@@ -268,16 +289,21 @@ function addrHtml(a){
 function card(o){
   const late=isLate(o),dlv=o.type==='delivery';
   const items=o.items.map(i=>`<li><b>${i.qty}×</b><span>${esc(i.name)}${i.note?`<small>${esc(i.note)}</small>`:''}</span></li>`).join('');
-  const payTag=o.pay==='transferencia'
+  const waitFee=o.status==='esperando_delivery';
+  const payTag=waitFee
+    ?'<span class="tag wait">Transferencia · falta el costo del delivery</span>'
+    :o.pay==='transferencia'
     ?(o.proof?'<span class="tag ok">Comprobante recibido</span>':'<span class="tag warn">Falta comprobante</span>')
     :`<span class="tag">${PAY[o.pay]||esc(o.pay)}</span>`;
   let act='';
-  if(o.status==='conf')act=`<button class="b sec" data-a="cancel" data-id="${o.id}" type="button">Cancelar</button><button class="b pri" data-a="next" data-id="${o.id}" type="button">${o.pay==='transferencia'?'Confirmar pago':'Aceptar'}</button>`;
+  if(waitFee)act=`<button class="b sec" data-a="cancel" data-id="${o.id}" type="button">Cancelar</button>`;
+  else if(o.status==='conf')act=`<button class="b sec" data-a="cancel" data-id="${o.id}" type="button">Cancelar</button><button class="b pri" data-a="next" data-id="${o.id}" type="button">${o.pay==='transferencia'?'Confirmar pago':'Aceptar'}</button>`;
   else if(o.status==='horno')act=`<button class="b pri" data-a="next" data-id="${o.id}" type="button">Listo</button>`;
   else if(o.status==='listo')act=`<button class="b pri" data-a="next" data-id="${o.id}" type="button">${dlv?'Entregado':'Recogido'}</button>`;
   const when=o.status==='ent'?`hace ${mins(o)} min`:`${mins(o)} min`;
   const feeTxt=o.fee_pending?'delivery por confirmar':o.fee?'incluye delivery '+fmt(o.fee):'sin delivery';
-  const feeBox=dlv&&o.status!=='ent'?`<div class="fee"><label for="fee-${o.id}">${o.fee_pending?'Costo del delivery':'Delivery'}</label><input id="fee-${o.id}" inputmode="numeric" placeholder="RD$" value="${o.fee_pending?'':o.fee}"><button class="b sec" data-fee="${o.id}" type="button">${o.fee_pending?'Enviar':'Cambiar'}</button></div>`:'';
+  const feeLabel=waitFee?'Enviar total y cuenta':o.fee_pending?'Enviar':'Cambiar';
+  const feeBox=dlv&&o.status!=='ent'?`<div class="fee"><label for="fee-${o.id}">${o.fee_pending?'Costo del delivery':'Delivery'}</label><input id="fee-${o.id}" inputmode="numeric" placeholder="RD$" value="${o.fee_pending?'':o.fee}"><button class="b ${waitFee?'pri':'sec'}" data-fee="${o.id}" type="button">${feeLabel}</button></div>`:'';
   return `<article class="card${late?' late':''}${o.status==='ent'?' fin':''}">
     <div class="hd"><div><span class="id">#${o.id}</span><span class="who">${esc(o.customer)}</span></div><span class="mins num">${late?'Demora · ':''}${when}</span></div>
     <div class="tags"><span class="tag${dlv?' dlv':''}">${dlv?'Delivery':'Recoger'}</span>${payTag}${o.notes?`<span class="tag">${esc(o.notes)}</span>`:''}${o.has_proof_image?`<button class="link" data-proof="${o.id}" type="button">Ver comprobante</button>`:''}</div>
@@ -290,7 +316,7 @@ function card(o){
 function board(){
   const keep={};document.querySelectorAll('.fee input').forEach(i=>{if(i.value!==i.defaultValue)keep[i.id]=i.value});
   $('#board').innerHTML=SEC.map(([k,label])=>{
-    const list=S.orders.filter(o=>o.status===k).sort((a,b)=>a.at-b.at);
+    const list=S.orders.filter(o=>(COL[o.status]||o.status)===k).sort((a,b)=>a.at-b.at);
     const body=list.length?list.map(card).join(''):'<div class="empty">Sin pedidos aquí.</div>';
     return `<div class="col${k==='ent'?' done':''}"><h2>${label}<em class="num">${list.length}</em></h2><div class="list">${body}</div></div>`;
   }).join('');
@@ -346,7 +372,23 @@ document.addEventListener('keydown',e=>{
 });
 const numVal=v=>{const t=String(v).trim();if(t==='')return null;const n=Number(t.replace(/[^0-9.]/g,''));return Number.isFinite(n)?n:NaN};
 function openSw(){const b=$('#openSw');b.setAttribute('aria-pressed',S.accepting);$('#openTxt').textContent=S.accepting?'Abierto':'Cerrado';}
-function render(){attention();kpis();board();summary();if(forceMenu||!menuBusy()){menu();forceMenu=false;}openSw();}
+let bankDirty=false;
+function bank(){
+  const ta=$('#bankText'),acc=S.bank_accounts||[];
+  if(!bankDirty&&document.activeElement!==ta)ta.value=acc.join('\n');
+  $('#bankWarn').hidden=acc.length>0;
+}
+$('#bankText').addEventListener('input',()=>{bankDirty=true;});
+$('#bankSave').addEventListener('click',async()=>{
+  const accounts=$('#bankText').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  if(accounts.length>5){toast('Máximo 5 cuentas.');return;}
+  if(accounts.some(a=>a.length>150)){toast('Cada cuenta debe tener menos de 150 letras.');return;}
+  $('#bankSave').disabled=true;
+  try{await call('set_bank_accounts',{accounts});bankDirty=false;toast(accounts.length?'Cuentas guardadas. El bot ya las usa.':'Cuentas borradas.');}
+  catch(err){toast('No se guardaron las cuentas.');}
+  $('#bankSave').disabled=false;load();
+});
+function render(){attention();kpis();board();summary();if(forceMenu||!menuBusy()){menu();forceMenu=false;}bank();openSw();}
 
 let tt;
 function toast(t){const e=$('#toast');e.textContent=t;e.hidden=false;clearTimeout(tt);tt=setTimeout(()=>e.hidden=true,2800);}
@@ -369,7 +411,7 @@ document.addEventListener('click',async e=>{
     const fee=Number(String(inp.value).replace(/[^0-9.]/g,''));
     if(!inp.value||!Number.isFinite(fee)||fee<0){toast('Escribe el costo del delivery en pesos.');inp.focus();return;}
     f.disabled=true;
-    try{const d=await call('set_fee',{id:Number(id),fee});inp.value='';toast(`Delivery de ${fmt(fee)} guardado.`+sentNote(d));}
+    try{const d=await call('set_fee',{id:Number(id),fee});inp.value='';toast(d.missing_bank?`Delivery guardado. Faltan las cuentas para transferir: cárgalas en la pestaña Menú.`:`Delivery de ${fmt(fee)} guardado.`+sentNote(d));}
     catch(err){toast('No se guardó el costo. Intenta otra vez.');}
     load();return;
   }
@@ -382,7 +424,12 @@ document.addEventListener('click',async e=>{
   }
   if(e.target.closest('#ovClose')||e.target.id==='ov'){$('#ov').hidden=true;$('#ovImg').removeAttribute('src');return;}
   const at=e.target.closest('[data-att]');
-  if(at){try{await call('resolve_attention',{phone:at.dataset.att});}catch(err){toast('No se guardó el cambio.');}load();return;}
+  if(at){
+    at.disabled=true;
+    try{await call('reactivate_bot',{phone:at.dataset.att});toast('El bot vuelve a atender a este cliente desde su próximo mensaje.');}
+    catch(err){toast('No se guardó el cambio.');at.disabled=false;}
+    load();return;
+  }
   const m=e.target.closest('[data-m]');
   if(m){
     const item=S.menu.find(x=>x.id===m.dataset.m);if(!item)return;
@@ -434,7 +481,7 @@ $('#openSw').addEventListener('click',async()=>{
 });
 load();
 setInterval(()=>{
-  const busy=document.activeElement&&document.activeElement.matches('.fee input, #menuList input');
+  const busy=document.activeElement&&document.activeElement.matches('.fee input, #menuList input, #bankText');
   if(!document.hidden&&$('#login').hidden&&$('#ov').hidden&&!busy)load();
 },15000);
 </script>

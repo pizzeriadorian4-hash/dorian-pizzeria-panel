@@ -225,6 +225,10 @@ td.r,th.r{text-align:right;padding-right:0}
 .sh-foot{border-top:1px solid var(--line);padding:12px 18px calc(12px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--ink)}
 .sh-foot .tot{font-size:22px}
 .sh-foot .b{min-height:48px;padding:10px 26px;font-size:16px;border-radius:6px}
+.sh-btns{display:flex;gap:8px}
+.sh-foot .b.alt{background:var(--raise);color:var(--text)}
+.sh-foot .b.alt:disabled{color:var(--muted);cursor:default}
+@media(max-width:600px){.sh-foot{flex-wrap:wrap}.sh-btns{width:100%}.sh-btns .b{flex:1;padding:10px 12px}.sheet:not([hidden])~.toast{bottom:150px}}
 /* Impresora de recibos */
 .b.ic{width:40px;padding:0;display:inline-flex;align-items:center;justify-content:center}
 .b.ic svg{width:20px;height:20px}
@@ -294,7 +298,6 @@ td.r,th.r{text-align:right;padding-right:0}
       <div class="fld"><span class="lb">Ancho del papel</span><div class="seg" id="prPaper"><button data-paper="58" aria-pressed="true" type="button">58 mm · pequeña</button><button data-paper="80" aria-pressed="false" type="button">80 mm · grande</button></div></div>
       <p class="prst" id="prStatus"></p>
       <div class="row"><button class="b sec" id="prConnect" type="button">Conectar impresora</button><button class="b pri" id="prTest" type="button">Imprimir prueba</button></div>
-      <button class="avail oven" id="prAutoLocal" aria-pressed="true" type="button"><span>Imprimir al guardar un pedido del local</span><span class="track" aria-hidden="true"></span></button>
       <button class="avail oven" id="prAutoAccept" aria-pressed="false" type="button"><span>Imprimir al aceptar un pedido de WhatsApp</span><span class="track" aria-hidden="true"></span></button>
     </div>
     <div class="bank">
@@ -337,7 +340,7 @@ td.r,th.r{text-align:right;padding-right:0}
       <button class="avail oven" id="shOven" aria-pressed="true" type="button"><span>Mandar al horno ahora</span><span class="track" aria-hidden="true"></span></button>
     </div>
   </div></div>
-  <div class="sh-foot"><div class="tot num" id="shTotal"></div><button class="b pri" id="shSave" type="button" disabled>Guardar pedido</button></div>
+  <div class="sh-foot"><div class="tot num" id="shTotal"></div><div class="sh-btns"><button class="b alt" id="shSaveOnly" type="button" disabled>Solo guardar</button><button class="b pri" id="shSave" type="button" disabled>Guardar e imprimir</button></div></div>
 </div>
 <div class="toast" id="toast" hidden></div>
 <div id="rcpt" aria-hidden="true"></div>
@@ -615,7 +618,6 @@ function openNew(){
   NO={lines:[],type:'recoger',pay:'efectivo',oven:true};
   ['shSearch','shName','shPhone','shAddr','shFee','shNotes'].forEach(id=>document.getElementById(id).value='');
   setSeg($('#shType'),'type','recoger');setSeg($('#shPay'),'pay','efectivo');$('#shDlv').hidden=true;$('#shOven').setAttribute('aria-pressed','true');
-  $('#shSave').textContent=saveLabel();
   $('#sheet').hidden=false;document.body.style.overflow='hidden';
   shProducts();shCart();$('.sh-body').scrollTop=0;
 }
@@ -647,7 +649,7 @@ function shTotal(){
   const n=NO.lines.reduce((a,l)=>a+l.qty,0);
   const note=!n?'Agrega productos':NO.type==='delivery'?(fee==null?'+ delivery por confirmar':'incluye delivery '+fmt(fee)):`${n} producto${n>1?'s':''}`;
   $('#shTotal').innerHTML=`${fmt(sub+(fee||0))}<small>${note}</small>`;
-  $('#shSave').disabled=!NO.lines.length;
+  $('#shSave').disabled=$('#shSaveOnly').disabled=!NO.lines.length;
 }
 $('#newOrder').addEventListener('click',openNew);
 $('#shClose').addEventListener('click',()=>{if(NO&&NO.lines.length&&!$('#shClose').classList.contains('armed')){const b=$('#shClose');b.classList.add('armed');b.textContent='¿Descartar pedido?';setTimeout(()=>{b.classList.remove('armed');b.textContent='Cancelar';},3500);return;}$('#shClose').classList.remove('armed');$('#shClose').textContent='Cancelar';closeNew();});
@@ -664,24 +666,26 @@ $('#sheet').addEventListener('click',async e=>{
   const ty=e.target.closest('[data-type]');if(ty){NO.type=ty.dataset.type;setSeg($('#shType'),'type',NO.type);$('#shDlv').hidden=NO.type!=='delivery';shTotal();return;}
   const py=e.target.closest('[data-pay]');if(py){NO.pay=py.dataset.pay;setSeg($('#shPay'),'pay',NO.pay);return;}
   if(e.target.closest('#shOven')){NO.oven=!NO.oven;$('#shOven').setAttribute('aria-pressed',NO.oven);return;}
-  if(e.target.closest('#shSave')){
+  const saveBtn=e.target.closest('#shSave, #shSaveOnly');
+  if(saveBtn){
+    const doPrint=saveBtn.id==='shSave';
     const addr=$('#shAddr').value.trim(),phone=$('#shPhone').value.replace(/\D/g,'');
     if(NO.type==='delivery'&&!addr){toast('Escribe la dirección del delivery.');$('#shAddr').focus();return;}
     if(phone&&phone.length!==10&&!(phone.length===11&&phone[0]==='1')){toast('El teléfono debe tener 10 dígitos.');$('#shPhone').focus();return;}
     const fv=$('#shFee').value.trim();if(NO.type==='delivery'&&fv&&shFee()==null){toast('El costo del delivery no es válido.');$('#shFee').focus();return;}
-    const sv=$('#shSave');sv.disabled=true;sv.textContent='Guardando…';
+    const label=saveBtn.textContent;$('#shSave').disabled=$('#shSaveOnly').disabled=true;saveBtn.textContent='Guardando…';
     const name=$('#shName').value.trim(),notes=$('#shNotes').value.trim(),fee=shFee(),snap={...NO,lines:NO.lines.map(l=>({...l}))};
     try{
       const d=await call('manual_order',{items:NO.lines.map(l=>({id:l.id,size:l.size,qty:l.qty,note:l.note||''})),name,phone,
         order_type:NO.type,address:addr,fee,pay:NO.pay,to_oven:NO.oven,notes});
       closeNew();toast(`Pedido #${d.id} guardado · ${fmt(d.total)}`);
-      if(PR.autoLocal&&PR.ready)printOrder({id:d.id,customer:name||'Cliente en el local',phone:phone?(phone.length===10?'1'+phone:phone):null,source:'local',
+      if(doPrint)printOrder({id:d.id,customer:name||'Cliente en el local',phone:phone?(phone.length===10?'1'+phone:phone):null,source:'local',
         type:snap.type,address:snap.type==='delivery'?addr:null,fee:fee||0,fee_pending:snap.type==='delivery'&&fee==null,pay:snap.pay,
         proof:snap.pay==='transferencia'&&snap.oven,total:Number(d.total),notes,at:Date.now(),
         items:snap.lines.map(l=>({name:lName(l),qty:l.qty,price:lPrice(l),note:l.note||''}))});
       load();
     }catch(err){toast(err.code==='address'?'Escribe la dirección del delivery.':err.code==='phone'?'El teléfono no es válido.':'No se guardó el pedido. Intenta otra vez.');}
-    sv.textContent=saveLabel();sv.disabled=!(NO&&NO.lines.length);
+    saveBtn.textContent=label;$('#shSave').disabled=$('#shSaveOnly').disabled=!(NO&&NO.lines.length);
   }
 });
 
@@ -697,7 +701,6 @@ try{Object.assign(PR,JSON.parse(localStorage.getItem('dorianPrinter')||'{}'))}ca
 if(PR.mode==='bt'&&!HAS_BT)PR.mode=IS_ANDROID?'rawbt':'system';
 if(PR.mode==='rawbt'&&!IS_ANDROID)PR.mode=HAS_BT?'bt':'system';
 const prSave=()=>{try{localStorage.setItem('dorianPrinter',JSON.stringify(PR))}catch(e){}};
-const saveLabel=()=>PR.autoLocal&&PR.ready?'Guardar e imprimir':'Guardar pedido';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 // Texto: la impresora usa la página de códigos 437; se dejan las letras del español y se limpia lo demás.
@@ -879,7 +882,7 @@ function prUi(){
   $('#prStatus').innerHTML=PR.mode==='bt'
     ?(BT.ch&&BT.dev&&BT.dev.gatt.connected?`Conectada: <b>${name}</b>`:PR.devName?`Impresora elegida: <b>${name}</b> · se conecta al imprimir`:'Todavía no hay impresora elegida.')
     :PR.mode==='rawbt'?'Los recibos se mandan a la app <b>RawBT</b>.':'Los recibos se abren en la <b>ventana de impresión</b>.';
-  $('#prAutoLocal').setAttribute('aria-pressed',PR.autoLocal);$('#prAutoAccept').setAttribute('aria-pressed',PR.autoAccept);
+  $('#prAutoAccept').setAttribute('aria-pressed',PR.autoAccept);
 }
 $('#prBox').addEventListener('click',async e=>{
   const md=e.target.closest('[data-mode]');if(md){if(!md.disabled){PR.mode=md.dataset.mode;prSave();prUi();}return;}
@@ -892,7 +895,6 @@ $('#prBox').addEventListener('click',async e=>{
     try{await printLines(testReceipt(PR.paper===80?48:32));PR.ready=true;prSave();if(PR.mode==='bt')toast('Prueba enviada a la impresora.');}catch(err){console.error(err);toast(prErr(err));}
     prUi();return;
   }
-  if(e.target.closest('#prAutoLocal')){PR.autoLocal=!PR.autoLocal;prSave();prUi();return;}
   if(e.target.closest('#prAutoAccept')){PR.autoAccept=!PR.autoAccept;prSave();prUi();return;}
 });
 prUi();btRestore();

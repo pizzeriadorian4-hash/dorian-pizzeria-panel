@@ -225,6 +225,25 @@ td.r,th.r{text-align:right;padding-right:0}
 .sh-foot{border-top:1px solid var(--line);padding:12px 18px calc(12px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--ink)}
 .sh-foot .tot{font-size:22px}
 .sh-foot .b{min-height:48px;padding:10px 26px;font-size:16px;border-radius:6px}
+/* Impresora de recibos */
+.b.ic{width:40px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.b.ic svg{width:20px;height:20px}
+.prbox .fld .lb{margin-top:12px}
+.prbox .seg button{background:var(--raise)}
+.prbox .seg button[aria-pressed="true"]{background:var(--gold);color:var(--gold-ink)}
+.prbox .seg button:disabled{opacity:.4;cursor:default}
+.prbox .oven{background:var(--raise);margin-top:10px;text-align:left;gap:14px}
+.prbox .row .b.pri{margin-left:auto}
+.prst{font-size:14px;margin-top:16px}
+.prst b{color:var(--gold);font-weight:600}
+#rcpt{display:none;color:#000;background:#fff;font-family:'Courier New',Courier,monospace;width:calc(var(--rw) + 8mm);padding:3mm 4mm 10mm}
+#rcpt .rl{white-space:pre;font-size:calc(var(--rw) / var(--rc) / .6);line-height:1.3;overflow:hidden}
+#rcpt .c{text-align:center}
+#rcpt .rb{font-weight:700}
+#rcpt .rg{font-size:calc(var(--rw) / var(--rc) / .3);line-height:1.15}
+#rcpt .rt{font-weight:700;transform:scaleY(1.6);transform-origin:50% 0;margin:.1em 0 .7em}
+@page{margin:0}
+@media print{html,body{background:#fff!important}body>*{display:none!important}body>#rcpt{display:block!important}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -268,6 +287,16 @@ td.r,th.r{text-align:right;padding-right:0}
   </section>
 
   <section id="v-menu" class="hide sec">
+    <div class="bank prbox" id="prBox">
+      <h2>Impresora de recibos</h2>
+      <p id="prHelp"></p>
+      <div class="fld"><span class="lb">Cómo imprimir</span><div class="seg" id="prMode"><button data-mode="bt" aria-pressed="false" type="button">Bluetooth directo</button><button data-mode="rawbt" aria-pressed="false" type="button">App RawBT</button><button data-mode="system" aria-pressed="false" type="button">Ventana de impresión</button></div></div>
+      <div class="fld"><span class="lb">Ancho del papel</span><div class="seg" id="prPaper"><button data-paper="58" aria-pressed="true" type="button">58 mm · pequeña</button><button data-paper="80" aria-pressed="false" type="button">80 mm · grande</button></div></div>
+      <p class="prst" id="prStatus"></p>
+      <div class="row"><button class="b sec" id="prConnect" type="button">Conectar impresora</button><button class="b pri" id="prTest" type="button">Imprimir prueba</button></div>
+      <button class="avail oven" id="prAutoLocal" aria-pressed="true" type="button"><span>Imprimir al guardar un pedido del local</span><span class="track" aria-hidden="true"></span></button>
+      <button class="avail oven" id="prAutoAccept" aria-pressed="false" type="button"><span>Imprimir al aceptar un pedido de WhatsApp</span><span class="track" aria-hidden="true"></span></button>
+    </div>
     <div class="bank">
       <h2>Cuentas para transferencia</h2>
       <p>Una cuenta por línea, tal como la debe ver el cliente. El bot las envía junto con el total.</p>
@@ -311,6 +340,7 @@ td.r,th.r{text-align:right;padding-right:0}
   <div class="sh-foot"><div class="tot num" id="shTotal"></div><button class="b pri" id="shSave" type="button" disabled>Guardar pedido</button></div>
 </div>
 <div class="toast" id="toast" hidden></div>
+<div id="rcpt" aria-hidden="true"></div>
 
 <script>
 const API='https://xwqtapylonyotyebrhtp.supabase.co/functions/v1/dorian-panel';
@@ -320,6 +350,7 @@ const SEC=[['conf','Por confirmar'],['horno','En horno'],['listo','Listos y en c
 const COL={esperando_delivery:'conf'};
 const ORDER=['conf','horno','listo','ent'];
 const PAY={transferencia:'Transferencia',efectivo:'Efectivo',tarjeta:'Tarjeta'};
+const PRINT_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="1.5"/><path d="M7 14h10v7H7z"/></svg>';
 let S={orders:[],menu:[],top:[],hours:[],freq:[],attention:[],accepting:true};
 let pin='';try{pin=localStorage.getItem('dorianPin')||''}catch(e){}
 
@@ -382,6 +413,7 @@ function card(o){
   else if(o.status==='conf')act=`<button class="b sec" data-a="cancel" data-id="${o.id}" type="button">Cancelar</button><button class="b pri" data-a="next" data-id="${o.id}" type="button">${o.pay==='transferencia'?'Confirmar pago':'Aceptar'}</button>`;
   else if(o.status==='horno')act=`<button class="b pri" data-a="next" data-id="${o.id}" type="button">Listo</button>`;
   else if(o.status==='listo')act=`<button class="b pri" data-a="next" data-id="${o.id}" type="button">${dlv?'Entregado':'Recogido'}</button>`;
+  act=`<button class="b sec ic" data-print="${o.id}" type="button" aria-label="Imprimir recibo" title="Imprimir recibo">${PRINT_ICON}</button>`+act;
   const when=o.status==='ent'?`hace ${mins(o)} min`:`${mins(o)} min`;
   const feeTxt=o.fee_pending?'delivery por confirmar':o.fee?'incluye delivery '+fmt(o.fee):'sin delivery';
   const feeLabel=waitFee?'Enviar total y cuenta':o.fee_pending?'Enviar':'Cambiar';
@@ -481,12 +513,16 @@ document.addEventListener('click',async e=>{
   if(a){
     const o=S.orders.find(x=>x.id==a.dataset.id);if(!o)return;
     const status=a.dataset.a==='next'?ORDER[ORDER.indexOf(o.status)+1]:'cancelado';
+    const autoPr=status==='horno'&&o.status==='conf'&&o.source!=='local'&&PR.autoAccept&&PR.ready;
     a.disabled=true;
     try{const d=await call('set_status',{id:Number(o.id),status});
-      toast((status==='cancelado'?`Pedido #${o.id} cancelado.`:`#${o.id} pasó a ${SEC.find(s=>s[0]===status)[1].toLowerCase()}.`)+sentNote(d));}
+      toast((status==='cancelado'?`Pedido #${o.id} cancelado.`:`#${o.id} pasó a ${SEC.find(s=>s[0]===status)[1].toLowerCase()}.`)+sentNote(d));
+      if(autoPr)printOrder(o);}
     catch(err){toast('No se guardó el cambio. Intenta otra vez.');}
     load();return;
   }
+  const pb=e.target.closest('[data-print]');
+  if(pb){const o=S.orders.find(x=>x.id==pb.dataset.print);if(o)printOrder(o);return;}
   const f=e.target.closest('[data-fee]');
   if(f){
     const id=f.dataset.fee,inp=document.getElementById('fee-'+id);
@@ -579,6 +615,7 @@ function openNew(){
   NO={lines:[],type:'recoger',pay:'efectivo',oven:true};
   ['shSearch','shName','shPhone','shAddr','shFee','shNotes'].forEach(id=>document.getElementById(id).value='');
   setSeg($('#shType'),'type','recoger');setSeg($('#shPay'),'pay','efectivo');$('#shDlv').hidden=true;$('#shOven').setAttribute('aria-pressed','true');
+  $('#shSave').textContent=saveLabel();
   $('#sheet').hidden=false;document.body.style.overflow='hidden';
   shProducts();shCart();$('.sh-body').scrollTop=0;
 }
@@ -633,14 +670,232 @@ $('#sheet').addEventListener('click',async e=>{
     if(phone&&phone.length!==10&&!(phone.length===11&&phone[0]==='1')){toast('El teléfono debe tener 10 dígitos.');$('#shPhone').focus();return;}
     const fv=$('#shFee').value.trim();if(NO.type==='delivery'&&fv&&shFee()==null){toast('El costo del delivery no es válido.');$('#shFee').focus();return;}
     const sv=$('#shSave');sv.disabled=true;sv.textContent='Guardando…';
+    const name=$('#shName').value.trim(),notes=$('#shNotes').value.trim(),fee=shFee(),snap={...NO,lines:NO.lines.map(l=>({...l}))};
     try{
-      const d=await call('manual_order',{items:NO.lines.map(l=>({id:l.id,size:l.size,qty:l.qty,note:l.note||''})),name:$('#shName').value.trim(),phone,
-        order_type:NO.type,address:addr,fee:shFee(),pay:NO.pay,to_oven:NO.oven,notes:$('#shNotes').value.trim()});
-      closeNew();toast(`Pedido #${d.id} guardado · ${fmt(d.total)}`);load();
+      const d=await call('manual_order',{items:NO.lines.map(l=>({id:l.id,size:l.size,qty:l.qty,note:l.note||''})),name,phone,
+        order_type:NO.type,address:addr,fee,pay:NO.pay,to_oven:NO.oven,notes});
+      closeNew();toast(`Pedido #${d.id} guardado · ${fmt(d.total)}`);
+      if(PR.autoLocal&&PR.ready)printOrder({id:d.id,customer:name||'Cliente en el local',phone:phone?(phone.length===10?'1'+phone:phone):null,source:'local',
+        type:snap.type,address:snap.type==='delivery'?addr:null,fee:fee||0,fee_pending:snap.type==='delivery'&&fee==null,pay:snap.pay,
+        proof:snap.pay==='transferencia'&&snap.oven,total:Number(d.total),notes,at:Date.now(),
+        items:snap.lines.map(l=>({name:lName(l),qty:l.qty,price:lPrice(l),note:l.note||''}))});
+      load();
     }catch(err){toast(err.code==='address'?'Escribe la dirección del delivery.':err.code==='phone'?'El teléfono no es válido.':'No se guardó el pedido. Intenta otra vez.');}
-    sv.textContent='Guardar pedido';sv.disabled=!(NO&&NO.lines.length);
+    sv.textContent=saveLabel();sv.disabled=!(NO&&NO.lines.length);
   }
 });
+
+// ---------- Impresora de recibos (térmica Bluetooth, comandos ESC/POS) ----------
+// Tres formas: Bluetooth directo (Chrome con Web Bluetooth, impresoras BLE), app RawBT (Android, casi cualquier
+// impresora térmica) o la ventana de impresión del equipo. La configuración se guarda en cada tablet.
+const UA=navigator.userAgent;
+const IS_IOS=/iPad|iPhone|iPod/.test(UA)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const IS_ANDROID=/Android/i.test(UA);
+const HAS_BT=!!(navigator.bluetooth&&window.isSecureContext);
+let PR={mode:HAS_BT?'bt':IS_ANDROID?'rawbt':'system',paper:58,autoLocal:true,autoAccept:false,ready:false,devId:'',devName:''};
+try{Object.assign(PR,JSON.parse(localStorage.getItem('dorianPrinter')||'{}'))}catch(e){}
+if(PR.mode==='bt'&&!HAS_BT)PR.mode=IS_ANDROID?'rawbt':'system';
+if(PR.mode==='rawbt'&&!IS_ANDROID)PR.mode=HAS_BT?'bt':'system';
+const prSave=()=>{try{localStorage.setItem('dorianPrinter',JSON.stringify(PR))}catch(e){}};
+const saveLabel=()=>PR.autoLocal&&PR.ready?'Guardar e imprimir':'Guardar pedido';
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+// Texto: la impresora usa la página de códigos 437; se dejan las letras del español y se limpia lo demás.
+const CP437={'á':0xA0,'é':0x82,'í':0xA1,'ó':0xA2,'ú':0xA3,'ñ':0xA4,'Ñ':0xA5,'¡':0xAD,'¿':0xA8,'ü':0x81,'Ü':0x9A,'É':0x90};
+const SUBS={'‘':"'",'’':"'",'“':'"','”':'"','–':'-','—':'-','•':'*','×':'x','…':'...','·':'-'};
+function pclean(t){
+  let out='';
+  for(const ch of String(t==null?'':t).normalize('NFC').replace(/[    \r\n\t]/g,' ')){
+    const c=ch.codePointAt(0);
+    if((c>=32&&c<127)||CP437[ch]){out+=ch;continue;}
+    if(SUBS[ch]){out+=SUBS[ch];continue;}
+    const b=ch.normalize('NFD').replace(/[̀-ͯ]/g,'');
+    if(b.length===1&&b.charCodeAt(0)>=32&&b.charCodeAt(0)<127){out+=b;continue;}
+    if(/[\p{L}\p{N}]/u.test(ch))out+='?';
+  }
+  return out.replace(/ {2,}/g,' ').trim();
+}
+function pwrap(t,w){
+  const out=[];let cur='';
+  for(let wd of String(t).split(' ').filter(Boolean)){
+    while(wd.length>w){if(cur){out.push(cur);cur='';}out.push(wd.slice(0,w));wd=wd.slice(w);}
+    if(!cur)cur=wd;else if(cur.length+1+wd.length<=w)cur+=' '+wd;else{out.push(cur);cur=wd;}
+  }
+  if(cur)out.push(cur);
+  return out.length?out:[''];
+}
+const pm=n=>Math.round(Number(n)||0).toLocaleString('en-US');
+function pdate(ms){
+  const p={};new Intl.DateTimeFormat('en-US',{timeZone:'America/Santo_Domingo',day:'2-digit',month:'2-digit',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true})
+    .formatToParts(new Date(ms)).forEach(x=>p[x.type]=x.value);
+  return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute} ${String(p.dayPeriod||'').toUpperCase()}`;
+}
+// Líneas del recibo: {s:texto, c:centrado, b:negrita, g:grande (doble ancho y alto), t:alto}
+function rcptBase(W){
+  const L=[];
+  const add=(s,f={})=>pwrap(pclean(s),f.g?Math.floor(W/2):W).forEach(p=>L.push({s:p,...f}));
+  const raw=(s,f={})=>L.push({s,...f});
+  const rule=()=>raw('-'.repeat(W));
+  const lr=(l,r,f={})=>{r=pclean(r);const parts=pwrap(pclean(l),Math.max(8,W-r.length-1));parts.forEach((p,i)=>raw(i?p:p.padEnd(W-r.length)+r,f));};
+  const field=(k,v)=>{const t=pclean(v);if(!t)return;const parts=pwrap(`${k}: ${t}`,W);raw(parts[0]);const rest=parts.slice(1).join(' ');if(rest)pwrap(rest,W-2).forEach(p=>raw('  '+p));};
+  const head=()=>{add('DORIAN PIZZERÍA',{c:1,g:1});add('Barrio Manhattan, Samaná',{c:1});add('Tel. y WhatsApp 829-775-4568',{c:1});rule();};
+  const foot=()=>{rule();add('¡Gracias por preferirnos!',{c:1,b:1});add('Abierto de 6:00 PM a 12:00 AM',{c:1});};
+  return {L,add,raw,rule,lr,field,head,foot};
+}
+function receipt(o,W){
+  const r=rcptBase(W),{L,add,raw,rule,lr,field}=r;
+  r.head();
+  add(`PEDIDO #${o.id}`,{c:1,g:1});add(pdate(o.at),{c:1});rule();
+  field('Cliente',o.customer);
+  if(o.phone&&!/[a-z]/i.test(o.phone))field('Tel',phoneTxt(o.phone));
+  const dlv=o.type==='delivery';
+  field('Entrega',dlv?'Delivery':o.source==='local'?'Para llevar / en el local':'Recoger en el local');
+  if(dlv&&o.address){const t=String(o.address).replace(/\s*·?\s*https?:\/\/\S+/,'').trim();field('Dirección',t||'Ubicación enviada por mapa');}
+  rule();
+  for(const i of o.items||[]){
+    const pre=`${i.qty} x `,right=pm(Number(i.price)*Number(i.qty));
+    const parts=pwrap(pclean(i.name),Math.max(8,W-pre.length-right.length-1));
+    parts.forEach((p,k)=>raw(k?' '.repeat(pre.length)+p:(pre+p).padEnd(W-right.length)+right));
+    if(i.note)pwrap(pclean(i.note),W-pre.length-2).forEach((p,k)=>raw(' '.repeat(pre.length)+(k?'  ':'* ')+p));
+  }
+  rule();
+  const fee=Number(o.fee)||0;
+  if(dlv){lr('Subtotal',pm(Number(o.total)-fee));lr('Delivery',o.fee_pending?'por confirmar':pm(fee));}
+  lr('TOTAL','RD$ '+pm(o.total),{b:1,t:1});
+  field('Pago',o.pay==='transferencia'?(o.proof?'Transferencia (recibida)':'Transferencia (pendiente)'):(PAY[o.pay]||o.pay));
+  if(o.notes)field('Nota',o.notes);
+  r.foot();
+  return L;
+}
+function testReceipt(W){
+  const r=rcptBase(W);r.head();
+  r.add('PRUEBA',{c:1,g:1});r.add(pdate(Date.now()),{c:1});r.rule();
+  r.add('Si estas letras salen bien, la impresora está lista:');
+  r.add('á é í ó ú ñ Ñ ¡ ¿',{b:1});
+  r.raw('1234567890'.repeat(5).slice(0,W));
+  r.rule();r.lr('1 x Pepperoni','800');r.lr('2 x Refresco','200');r.rule();
+  r.lr('TOTAL','RD$ 1,000',{b:1,t:1});r.foot();
+  return r.L;
+}
+function escpos(L){
+  const o=[0x1b,0x40,0x1c,0x2e,0x1b,0x74,0x00]; // iniciar, quitar modo chino, página 437
+  for(const l of L){
+    o.push(0x1b,0x61,l.c?1:0,0x1b,0x45,l.b||l.g?1:0,0x1d,0x21,l.g?0x11:l.t?0x01:0x00);
+    for(const ch of l.s){const c=ch.charCodeAt(0);o.push(c<128?c:(CP437[ch]||63));}
+    o.push(0x0a);
+  }
+  o.push(0x1b,0x61,0,0x1b,0x45,0,0x1d,0x21,0,0x1b,0x64,4,0x1d,0x56,0x42,0x00); // avanzar y cortar (si tiene cuchilla)
+  return new Uint8Array(o);
+}
+function rcptHtml(L,W){
+  const el=$('#rcpt');el.style.setProperty('--rw',(W===48?72:48)+'mm');el.style.setProperty('--rc',W);
+  el.innerHTML=L.map(l=>`<div class="rl${l.c?' c':''}${l.b||l.g?' rb':''}${l.g?' rg':''}${l.t?' rt':''}">${esc(l.s)||'&nbsp;'}</div>`).join('');
+}
+
+// Bluetooth directo (BLE). Se aceptan los servicios que usan las impresoras térmicas más comunes.
+const BT_SVC=['000018f0-0000-1000-8000-00805f9b34fb','e7810a71-73ae-499d-8c15-faa9aef0c3f2','49535343-fe7d-4ae5-8fa9-9fafd205e455',
+  '0000ff00-0000-1000-8000-00805f9b34fb','0000ffe0-0000-1000-8000-00805f9b34fb','0000fee7-0000-1000-8000-00805f9b34fb',
+  '0000ae30-0000-1000-8000-00805f9b34fb','0000af30-0000-1000-8000-00805f9b34fb','0000ffe5-0000-1000-8000-00805f9b34fb'];
+const BT_CHR=['00002af1-0000-1000-8000-00805f9b34fb','bef8d6c9-9c21-4c9e-b632-bd58c1009f9f','49535343-8841-43f4-a8d4-ecbe34729bb3',
+  '0000ff02-0000-1000-8000-00805f9b34fb','0000ffe1-0000-1000-8000-00805f9b34fb','0000ae01-0000-1000-8000-00805f9b34fb'];
+const BT={dev:null,ch:null,q:Promise.resolve()};
+function btUse(dev){
+  BT.dev=dev;BT.ch=null;PR.devId=dev.id;PR.devName=dev.name||'Impresora';prSave();
+  dev.addEventListener('gattserverdisconnected',()=>{BT.ch=null;prUi();});
+}
+async function btPick(){btUse(await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:BT_SVC}));prUi();}
+const timeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(Object.assign(new Error('timeout'),{name:'TimeoutError'})),ms))]);
+async function btChar(){
+  if(BT.ch&&BT.dev.gatt.connected)return BT.ch;
+  const srv=await timeout(BT.dev.gatt.connect(),12000);
+  let pick=null;
+  for(const s of await srv.getPrimaryServices()){
+    let chs=[];try{chs=await s.getCharacteristics();}catch(e){continue;}
+    for(const c of chs){
+      if(!(c.properties.write||c.properties.writeWithoutResponse))continue;
+      if(BT_CHR.includes(c.uuid)){pick=c;break;}
+      if(!pick)pick=c;
+    }
+    if(pick&&BT_CHR.includes(pick.uuid))break;
+  }
+  if(!pick)throw Object.assign(new Error('nochar'),{name:'NoCharError'});
+  BT.ch=pick;prUi();return pick;
+}
+async function btWrite(bytes){
+  const ch=await btChar(),withResp=ch.properties.write;
+  for(let i=0;i<bytes.length;i+=20){
+    const part=bytes.slice(i,i+20);
+    if(withResp)await(ch.writeValueWithResponse?ch.writeValueWithResponse(part):ch.writeValue(part));
+    else{await ch.writeValueWithoutResponse(part);await sleep(15);}
+  }
+}
+async function btSend(bytes){
+  if(!BT.dev)await btPick();
+  const job=BT.q.then(async()=>{try{await btWrite(bytes);}catch(e){if(e.name==='NoCharError')throw e;BT.ch=null;await btWrite(bytes);}});
+  BT.q=job.catch(()=>{});
+  return job;
+}
+async function btRestore(){
+  if(!HAS_BT||!PR.devId||!navigator.bluetooth.getDevices)return;
+  try{const d=(await navigator.bluetooth.getDevices()).find(x=>x.id===PR.devId);if(d){btUse(d);prUi();}}catch(e){}
+}
+function prErr(e){
+  const n=e&&e.name;
+  if(n==='NotFoundError')return'No se eligió ninguna impresora.';
+  if(n==='SecurityError')return'Toca el botón de imprimir otra vez para elegir la impresora.';
+  if(n==='NoCharError')return'Esa impresora no recibe datos por Bluetooth directo. Usa la opción "App RawBT".';
+  return'No se pudo conectar con la impresora. Revisa que esté encendida, con papel y cerca de la tablet.';
+}
+async function printLines(L){
+  const W=PR.paper===80?48:32;
+  if(PR.mode==='system'){rcptHtml(L,W);setTimeout(()=>window.print(),60);return;}
+  const bytes=escpos(L);
+  if(PR.mode==='rawbt'){
+    let s='';for(let i=0;i<bytes.length;i+=0x8000)s+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
+    location.href='intent:base64,'+btoa(s)+'#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
+    return;
+  }
+  await btSend(bytes);
+}
+async function printOrder(o){
+  try{await printLines(receipt(o,PR.paper===80?48:32));
+    if(!PR.ready){PR.ready=true;prSave();prUi();}
+    if(PR.mode==='bt')toast(`Recibo del pedido #${o.id} impreso.`);}
+  catch(e){console.error(e);toast(prErr(e));}
+}
+const PR_HELP={
+  bt:'Enciende la impresora y tócala en la lista la primera vez. Funciona en Chrome de Android y en computadoras. Si tu impresora no aparece en la lista, usa "App RawBT".',
+  rawbt:'Instala gratis la app RawBT desde Play Store y empareja la impresora dentro de esa app una sola vez. Funciona con casi todas las impresoras térmicas Bluetooth.',
+  system:'Abre la ventana de impresión del equipo. Úsala si la impresora ya está instalada en la tablet o computadora.'};
+function prUi(){
+  setSeg($('#prMode'),'mode',PR.mode);setSeg($('#prPaper'),'paper',String(PR.paper));
+  $('#prMode [data-mode="bt"]').disabled=!HAS_BT;$('#prMode [data-mode="rawbt"]').disabled=!IS_ANDROID;
+  $('#prHelp').textContent=IS_IOS
+    ?'En iPad y iPhone, Apple no deja que una página web se conecte a impresoras Bluetooth. Para imprimir recibos usa una tablet o celular Android, o una impresora con AirPrint.'
+    :PR_HELP[PR.mode];
+  $('#prConnect').hidden=PR.mode!=='bt';
+  $('#prConnect').textContent=BT.dev||PR.devName?'Cambiar impresora':'Conectar impresora';
+  const name=esc(PR.devName||'Impresora');
+  $('#prStatus').innerHTML=PR.mode==='bt'
+    ?(BT.ch&&BT.dev&&BT.dev.gatt.connected?`Conectada: <b>${name}</b>`:PR.devName?`Impresora elegida: <b>${name}</b> · se conecta al imprimir`:'Todavía no hay impresora elegida.')
+    :PR.mode==='rawbt'?'Los recibos se mandan a la app <b>RawBT</b>.':'Los recibos se abren en la <b>ventana de impresión</b>.';
+  $('#prAutoLocal').setAttribute('aria-pressed',PR.autoLocal);$('#prAutoAccept').setAttribute('aria-pressed',PR.autoAccept);
+}
+$('#prBox').addEventListener('click',async e=>{
+  const md=e.target.closest('[data-mode]');if(md){if(!md.disabled){PR.mode=md.dataset.mode;prSave();prUi();}return;}
+  const pp=e.target.closest('[data-paper]');if(pp){PR.paper=Number(pp.dataset.paper);prSave();prUi();return;}
+  if(e.target.closest('#prConnect')){
+    try{await btPick();await btChar();PR.ready=true;prSave();toast(`Impresora ${PR.devName} conectada.`);}catch(err){toast(prErr(err));}
+    prUi();return;
+  }
+  if(e.target.closest('#prTest')){
+    try{await printLines(testReceipt(PR.paper===80?48:32));PR.ready=true;prSave();if(PR.mode==='bt')toast('Prueba enviada a la impresora.');}catch(err){console.error(err);toast(prErr(err));}
+    prUi();return;
+  }
+  if(e.target.closest('#prAutoLocal')){PR.autoLocal=!PR.autoLocal;prSave();prUi();return;}
+  if(e.target.closest('#prAutoAccept')){PR.autoAccept=!PR.autoAccept;prSave();prUi();return;}
+});
+prUi();btRestore();
 
 // Instalar como app (Chrome en Android o computadora). En iPad: Compartir > Agregar a pantalla de inicio.
 let installEvt=null;

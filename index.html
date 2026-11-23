@@ -451,7 +451,7 @@ function summary(){
 }
 const dirty=new Set();let forceMenu=false;
 const GROUPS=[
-  {key:'pizza',title:'Pizzas',f:m=>m.category==='pizza'&&m.size!=='pedazo',med:true,add:'Nueva pizza',cols:['Nombre','Grande','Mediana']},
+  {key:'pizza',title:'Pizzas',f:m=>m.category==='pizza'&&m.size!=='pedazo',med:true,add:'Nueva pizza',cols:['Nombre','12 pedazos','8 pedazos']},
   {key:'pedazo',title:'Pedazos',f:m=>m.size==='pedazo',med:false,add:null,cols:['Nombre','Por pedazo']},
   {key:'extra',title:'Extras',f:m=>m.category==='extra',med:false,add:'Nuevo extra',cols:['Nombre','Precio']},
   {key:'bebida',title:'Bebidas',f:m=>m.category==='bebida',med:false,add:'Nueva bebida',cols:['Nombre','Precio']}];
@@ -463,13 +463,13 @@ function menuRow(m,g){
   return `<div class="er${m?'':' add'}${m&&!m.available?' off':''}" data-row="${k}" data-cat="${g.key==='pedazo'?'pizza':g.key}">
     <input class="f-name" id="n-${k}" value="${m?v(m.name):''}" placeholder="${m?'':esc(g.add)}" aria-label="Nombre" maxlength="60">
     <input class="f-price num" id="p-${k}" inputmode="numeric" value="${m?v(m.price):''}" placeholder="RD$" aria-label="${g.cols[1]}">
-    ${g.med?`<input class="f-med num" id="m-${k}" inputmode="numeric" value="${m?v(m.price_medium):''}" placeholder="—" aria-label="Precio mediana">`:''}
+    ${g.med?`<input class="f-med num" id="m-${k}" inputmode="numeric" value="${m?v(m.price_medium):''}" placeholder="—" aria-label="Precio de 8 pedazos">`:''}
     <div class="racts">${acts}</div></div>`;
 }
 function menu(){
   const keep={};
   dirty.forEach(k=>{document.querySelectorAll(`[data-row="${k}"] input`).forEach(i=>keep[i.id]=i.value)});
-  $('#menuList').innerHTML='<p class="mhelp">Los cambios se guardan al tocar Guardar y el bot los usa en el siguiente mensaje. Deja la mediana vacía si esa pizza no se vende en mediana.</p>'+GROUPS.map(g=>{
+  $('#menuList').innerHTML='<p class="mhelp">Los cambios se guardan al tocar Guardar y el bot los usa en el siguiente mensaje. Deja el precio de 8 pedazos vacío si esa pizza no se vende de 8 pedazos.</p>'+GROUPS.map(g=>{
     const items=S.menu.filter(g.f);
     if(!items.length&&!g.add)return'';
     return `<div class="mgrp${g.med?'':' nomed'}"><h2 class="t">${g.title}</h2><div class="eh">${g.cols.map((c,i)=>`<span${i?' style="text-align:right"':''}>${c}</span>`).join('')}</div>`+
@@ -571,7 +571,7 @@ document.addEventListener('click',async e=>{
     const medEl=row.querySelector('.f-med');const med=medEl?numVal(medEl.value):null;
     if(!name){toast('Escribe el nombre.');row.querySelector('.f-name').focus();return;}
     if(price===null||Number.isNaN(price)){toast('Escribe un precio válido.');row.querySelector('.f-price').focus();return;}
-    if(Number.isNaN(med)){toast('El precio de la mediana no es válido.');medEl.focus();return;}
+    if(Number.isNaN(med)){toast('El precio de 8 pedazos no es válido.');medEl.focus();return;}
     const item={category:row.dataset.cat,name,price,price_medium:med};
     if(!isNew)item.id=key;
     sv.disabled=true;
@@ -611,7 +611,7 @@ let NO=null;
 const norm=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
 const PGR=[['Pizzas',m=>m.category==='pizza'&&m.size!=='pedazo'],['Pedazos',m=>m.size==='pedazo'],['Bebidas',m=>m.category==='bebida'],['Extras',m=>m.category==='extra']];
 const mItem=id=>S.menu.find(x=>x.id===id);
-const lName=l=>{const m=mItem(l.id);if(!m)return'Producto';return m.size==='pedazo'?'Pedazos de pizza':l.size==='mediana'?m.name+' (mediana)':m.name};
+const lName=l=>{const m=mItem(l.id);if(!m)return'Producto';return m.size==='pedazo'?'Pedazos de pizza':(m.category==='pizza'&&m.price_medium!=null)?`${m.name} (${l.size==='mediana'?8:12} pedazos)`:m.name};
 const lPrice=l=>{const m=mItem(l.id);if(!m)return 0;return l.size==='mediana'&&m.price_medium!=null?Number(m.price_medium):Number(m.price)};
 const setSeg=(box,attr,val)=>box.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset[attr]===val));
 function openNew(){
@@ -631,7 +631,7 @@ function shProducts(){
       let bt;
       if(!m.available)bt='<button class="addb" type="button" disabled>Agotado</button>';
       else if(m.size==='pedazo')bt=`<button class="addb" data-add="${m.id}" data-size="grande" type="button">+1 pedazo<b>${fmt(m.price)}</b></button>`;
-      else if(m.category==='pizza'&&m.price_medium!=null)bt=`<button class="addb" data-add="${m.id}" data-size="grande" type="button">Grande<b>${fmt(m.price)}</b></button><button class="addb" data-add="${m.id}" data-size="mediana" type="button">Mediana<b>${fmt(m.price_medium)}</b></button>`;
+      else if(m.category==='pizza'&&m.price_medium!=null)bt=`<button class="addb" data-add="${m.id}" data-size="grande" type="button">12 pedazos<b>${fmt(m.price)}</b></button><button class="addb" data-add="${m.id}" data-size="mediana" type="button">8 pedazos<b>${fmt(m.price_medium)}</b></button>`;
       else bt=`<button class="addb" data-add="${m.id}" data-size="grande" type="button">Agregar<b>${fmt(m.price)}</b></button>`;
       return `<div class="prow${m.available?'':' off'}"><span class="n">${esc(m.name)}</span><span class="bt">${bt}</span></div>`;
     }).join('')+'</div>';

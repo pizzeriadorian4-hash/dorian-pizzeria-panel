@@ -1,7 +1,7 @@
 // Service worker del panel: permite instalarlo como app en la tablet.
 // La página se pide siempre a internet (así llegan las actualizaciones) y solo si no hay
 // conexión se abre la última copia guardada. Los pedidos y el menú nunca se guardan aquí.
-const CACHE = 'dorian-panel-v1';
+const CACHE = 'dorian-panel-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
